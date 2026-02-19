@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Global Styles ── */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: #0a0a0f;
+  color: #e0e0e0;
+  font-family: 'Rajdhani', sans-serif;
+  overflow-x: hidden;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0a0a0f;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e1e2e;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #00f0ff44;
+}
+
+/* ── Glowing border utility ── */
+.border-glow {
+  border: 1px solid rgba(0, 240, 255, 0.15);
+  box-shadow: inset 0 0 30px rgba(0, 240, 255, 0.03);
+}
+
+/* ── Hide scrollbar but keep scrollable ── */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ── Score flash ── */
+@keyframes scoreFlash {
+  0% { background-color: rgba(0, 230, 118, 0.25); }
+  100% { background-color: transparent; }
+}
+.score-flash {
+  animation: scoreFlash 1.5s ease-out forwards;
+}
+
+/* ── Live pulse dot ── */
+@keyframes livePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.8); }
+}
+.live-pulse {
+  animation: livePulse 1.5s ease-in-out infinite;
+}
+
+/* ── Scan line overlay ── */
+.scan-overlay::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(0,240,255,0.15), transparent);
+  animation: scanLine 4s linear infinite;
+}
+
+/* ── Ticker animation ── */
+@keyframes tickerScroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.ticker-scroll {
+  animation: tickerScroll 30s linear infinite;
+}
+
+/* ── Grid background pattern ── */
+.grid-bg {
+  background-image: 
+    linear-gradient(rgba(0,240,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,240,255,0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
