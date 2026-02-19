@@ -1,4 +1,3 @@
-import { motion, AnimatePresence } from 'framer-motion';
 import { useTournament } from '../store';
 
 function StatusBadge({ status }) {
@@ -25,17 +24,7 @@ function StatusBadge({ status }) {
 function MatchCard({ match, index }) {
   const isLive = match.status === 'live';
   return (
-    <motion.div
-      layout
-      layoutId={`match-${match.id}`}
-      initial={{ opacity: 0, y: 40, scale: 0.95 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: -60, scale: 0.9, transition: { duration: 0.4, ease: 'easeIn' } }}
-      transition={{
-        layout: { type: 'spring', stiffness: 250, damping: 25, mass: 0.8 },
-        opacity: { duration: 0.35 },
-        scale: { duration: 0.3 },
-      }}
+    <div
       className={`
         flex-shrink-0 w-full rounded-lg p-2.5 border transition-all duration-300
         ${isLive
@@ -66,7 +55,7 @@ function MatchCard({ match, index }) {
           </p>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -92,11 +81,9 @@ export function MatchLineupPanel({ showAdvance = true }) {
       </div>
 
       <div className="space-y-1.5">
-        <AnimatePresence mode="popLayout">
-          {activeMatches.map((match, idx) => (
-            <MatchCard key={match.id} match={match} index={idx} />
-          ))}
-        </AnimatePresence>
+        {activeMatches.map((match, idx) => (
+          <MatchCard key={match.id} match={match} index={idx} />
+        ))}
         {activeMatches.length === 0 && (
           <div className="text-center py-8 text-gray-600 font-mono text-sm">
             All matches completed

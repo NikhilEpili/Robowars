@@ -1,5 +1,4 @@
 import { useState, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useTournament } from '../store';
 import {
   DAMAGE_MULTIPLIERS, AGGRESSION_MULTIPLIERS, CONTROL_MULTIPLIERS,
@@ -48,13 +47,7 @@ function EntryRow({ entry, onChange, onRemove, typeKey, typeLabel, multipliers, 
   const pts = base * (multipliers[typeValue] ?? 1) * entry.hits;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, height: 0 }}
-      animate={{ opacity: 1, height: 'auto' }}
-      exit={{ opacity: 0, height: 0 }}
-      transition={{ duration: 0.2 }}
-      className="flex items-end gap-2"
-    >
+    <div className="flex items-end gap-2">
       <Select
         label={typeLabel}
         value={typeValue}
@@ -83,7 +76,7 @@ function EntryRow({ entry, onChange, onRemove, typeKey, typeLabel, multipliers, 
       >
         ×
       </button>
-    </motion.div>
+    </div>
   );
 }
 
@@ -127,28 +120,26 @@ function CategorySection({ title, color, dotColor, base, entries, setEntries, ty
         <p className="text-xs text-gray-600 font-mono text-center py-2">No entries — click "+ Add" to score</p>
       )}
 
-      <AnimatePresence>
-        {entries.map((entry, idx) => (
-          <EntryRow
-            key={idx}
-            entry={entry}
-            onChange={(e) => updateEntry(idx, e)}
-            onRemove={() => removeEntry(idx)}
-            typeKey={typeKey}
-            typeLabel={typeLabel}
-            multipliers={multipliers}
-            base={base}
-            color={color}
-          />
-        ))}
-      </AnimatePresence>
+      {entries.map((entry, idx) => (
+        <EntryRow
+          key={idx}
+          entry={entry}
+          onChange={(e) => updateEntry(idx, e)}
+          onRemove={() => removeEntry(idx)}
+          typeKey={typeKey}
+          typeLabel={typeLabel}
+          multipliers={multipliers}
+          base={base}
+          color={color}
+        />
+      ))}
     </div>
   );
 }
 
 // ── ADMIN PAGE ──
 export default function AdminPage() {
-  const { teams, sortedTeams, matches, byeTeamId, currentRound, updateTeam, advanceMatch, setBye, addMatch, removeMatch, updateMatchStatus, resetAll, setRound } = useTournament();
+  const { teams, sortedTeams, updateTeam, resetAll } = useTournament();
   const [submitted, setSubmitted] = useState(false);
   const [selectedTeamId, setSelectedTeamId] = useState(teams[0]?.id ?? 1);
 
@@ -220,9 +211,8 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-robo-dark grid-bg flex">
-      {/* ── Left: Score Entry Form ── */}
-      <div className="w-[520px] flex-shrink-0 border-r border-robo-border overflow-y-auto h-screen">
+    <div className="min-h-screen bg-robo-dark grid-bg">
+      <div className="max-w-[720px] mx-auto border-x border-robo-border min-h-screen">
         {/* Header */}
         <div className="sticky top-0 z-20 bg-robo-card/95 backdrop-blur-xl border-b border-robo-border px-6 py-4">
           <div className="flex items-center gap-3">
@@ -314,14 +304,9 @@ export default function AdminPage() {
             </div>
             <div className="border-t border-robo-border pt-3 flex items-center justify-between">
               <span className="font-body text-sm text-gray-400">+ This round</span>
-              <motion.span
-                key={preview.total}
-                initial={{ scale: 1.2, color: '#00f0ff' }}
-                animate={{ scale: 1, color: '#00e676' }}
-                className="font-display font-bold text-xl"
-              >
+              <span className="font-display font-bold text-xl">
                 +{preview.total.toFixed(1)}
-              </motion.span>
+              </span>
             </div>
             {selectedTeam && (
               <div className="flex items-center justify-between">
@@ -334,10 +319,8 @@ export default function AdminPage() {
           </div>
 
           {/* Submit */}
-          <motion.button
+          <button
             type="submit"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
             className={`w-full py-3 rounded-xl font-display font-bold uppercase tracking-wider text-sm transition-all duration-300 ${
               submitted
                 ? 'bg-robo-green text-robo-dark'
@@ -345,17 +328,10 @@ export default function AdminPage() {
             }`}
           >
             {submitted ? '✓ SCORE SUBMITTED' : 'SUBMIT SCORES'}
-          </motion.button>
+          </button>
 
-          {/* Match controls + Reset */}
+          {/* Controls + Reset */}
           <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={advanceMatch}
-              className="flex-1 py-2 rounded-xl font-display font-bold uppercase tracking-wider text-xs bg-robo-card border border-robo-border text-robo-accent hover:bg-robo-accent/10 transition-colors"
-            >
-              Advance Match →
-            </button>
             <button
               type="button"
               onClick={handleDownloadCSV}
@@ -372,281 +348,6 @@ export default function AdminPage() {
             </button>
           </div>
         </form>
-      </div>
-
-      {/* ── Right: Bye + Match Manager + Scoreboard ── */}
-      <div className="flex-1 overflow-y-auto h-screen p-6 space-y-6">
-
-        {/* ── BYE SECTION ── */}
-        <div className="bg-robo-card/50 rounded-xl border border-robo-purple/30 p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="w-2 h-2 rounded-full bg-robo-purple" />
-            <h2 className="font-display font-bold text-sm text-white tracking-wider uppercase">Bye (Chit Draw)</h2>
-          </div>
-          <div className="flex items-center gap-3">
-            <select
-              value={byeTeamId ?? ''}
-              onChange={(e) => setBye(e.target.value ? Number(e.target.value) : null)}
-              className="flex-1 bg-robo-dark border border-robo-border rounded-lg px-3 py-2 text-sm text-white font-body focus:border-robo-purple focus:outline-none focus:ring-1 focus:ring-robo-purple/30 transition-colors appearance-none cursor-pointer"
-            >
-              <option value="">No bye this round</option>
-              {teams.map(t => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
-            {byeTeamId && (
-              <button
-                onClick={() => setBye(null)}
-                className="text-xs font-mono text-robo-red hover:text-red-400 transition-colors"
-              >
-                Clear
-              </button>
-            )}
-          </div>
-          {byeTeamId && (
-            <div className="mt-2 text-xs font-mono text-robo-purple">
-              ✦ {teams.find(t => t.id === byeTeamId)?.name} has a BYE — advances without fighting
-            </div>
-          )}
-        </div>
-
-        {/* ── MATCH MANAGER ── */}
-        <MatchManager teams={teams} matches={matches} currentRound={currentRound} addMatch={addMatch} removeMatch={removeMatch} updateMatchStatus={updateMatchStatus} advanceMatch={advanceMatch} setRound={setRound} />
-
-        {/* ── Mini Scoreboard ── */}
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-2.5 h-2.5 rounded-full bg-robo-green live-pulse" />
-            <h2 className="font-display font-bold text-sm text-white tracking-wider uppercase">Live Scoreboard</h2>
-          </div>
-          <div className="bg-robo-card/50 rounded-xl border border-robo-border overflow-hidden">
-            <div className="grid grid-cols-[36px_1fr_60px_60px_60px_60px] gap-1 px-3 py-1.5 text-[9px] text-gray-500 font-mono uppercase tracking-widest border-b border-robo-border">
-              <span>#</span>
-              <span>Team</span>
-              <span className="text-right">DMG</span>
-              <span className="text-right">AGR</span>
-              <span className="text-right">CTR</span>
-              <span className="text-right">Total</span>
-            </div>
-
-            {sortedTeams.map((team, idx) => (
-              <motion.div
-                key={team.id}
-                layout
-                layoutId={`admin-row-${team.id}`}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{
-                  layout: { type: 'spring', stiffness: 250, damping: 25, mass: 0.7 },
-                  opacity: { duration: 0.3 },
-                }}
-                className={`grid grid-cols-[36px_1fr_60px_60px_60px_60px] gap-1 px-3 py-1.5 border-b border-robo-border/50 items-center text-xs ${
-                  team.id === selectedTeamId ? 'bg-robo-accent/5 border-l-2 border-l-robo-accent' : ''
-                } ${team.hasBye ? 'bg-robo-purple/5 border-l-2 border-l-robo-purple' : ''}`}
-              >
-                <span className={`font-display font-bold ${idx === 0 ? 'text-robo-yellow' : idx === 1 ? 'text-gray-300' : idx === 2 ? 'text-orange-400' : 'text-gray-600'}`}>
-                  {idx + 1}
-                </span>
-                <div className="flex items-center gap-1.5 truncate">
-
-                  <span className="font-display font-semibold text-white truncate">{team.name}</span>
-                  {team.hasBye && <span className="text-robo-purple text-[9px] font-mono">BYE</span>}
-                </div>
-                <span className="text-right font-mono text-robo-red">{team.damageTotal.toFixed(1)}</span>
-                <span className="text-right font-mono text-robo-orange">{team.aggrTotal.toFixed(1)}</span>
-                <span className="text-right font-mono text-robo-accent">{team.ctrlTotal.toFixed(1)}</span>
-                <span className="text-right font-display font-bold text-white">{team.total.toFixed(1)}</span>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-
-        {/* Quick link */}
-        <div className="p-3 bg-robo-card/50 rounded-xl border border-robo-border">
-          <p className="text-xs font-mono text-gray-400">
-            <span className="text-robo-accent font-bold">Display URL:</span>{' '}
-            Open <a href="/" target="_blank" className="text-robo-accent underline hover:text-white transition-colors">the display page</a> in a new window on the projector. Scores + matches sync in real-time.
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── ROUND CONFIG ──
-const ROUNDS = [
-  { key: 'qualifiers',     label: 'Qualifiers',     icon: '○',
-    active: 'bg-robo-accent/20 border-robo-accent/50 text-robo-accent',
-    inactive: 'bg-robo-dark/50 border-robo-border text-gray-500 hover:text-gray-300 hover:border-gray-500',
-    heading: 'text-robo-accent' },
-  { key: 'quarter-finals', label: 'Quarter Finals',  icon: '◉',
-    active: 'bg-robo-yellow/20 border-robo-yellow/50 text-robo-yellow',
-    inactive: 'bg-robo-dark/50 border-robo-border text-gray-500 hover:text-gray-300 hover:border-gray-500',
-    heading: 'text-robo-yellow' },
-  { key: 'semi-finals',    label: 'Semi Finals',     icon: '◈',
-    active: 'bg-robo-orange/20 border-robo-orange/50 text-robo-orange',
-    inactive: 'bg-robo-dark/50 border-robo-border text-gray-500 hover:text-gray-300 hover:border-gray-500',
-    heading: 'text-robo-orange' },
-  { key: 'finals',         label: 'Finals',          icon: '★',
-    active: 'bg-robo-red/20 border-robo-red/50 text-robo-red',
-    inactive: 'bg-robo-dark/50 border-robo-border text-gray-500 hover:text-gray-300 hover:border-gray-500',
-    heading: 'text-robo-red' },
-];
-
-// ── MATCH MANAGER COMPONENT ──
-function MatchManager({ teams, matches, currentRound, addMatch, removeMatch, updateMatchStatus, advanceMatch, setRound }) {
-  const [newTeamA, setNewTeamA] = useState('');
-  const [newTeamB, setNewTeamB] = useState('');
-  const [addToRound, setAddToRound] = useState(currentRound || 'qualifiers');
-
-  function handleAddMatch() {
-    if (!newTeamA || !newTeamB || newTeamA === newTeamB) return;
-    addMatch(newTeamA, newTeamB, 'upcoming', addToRound);
-    setNewTeamA('');
-    setNewTeamB('');
-  }
-
-  const statusOpts = ['upcoming', 'next', 'live', 'completed'];
-
-  return (
-    <div className="bg-robo-card/50 rounded-xl border border-robo-border p-4 space-y-4">
-      {/* Header + Current Round */}
-      <div>
-        <div className="flex items-center gap-2 mb-3">
-          <span className="w-2 h-2 rounded-full bg-robo-yellow" />
-          <h2 className="font-display font-bold text-sm text-white tracking-wider uppercase">Match Lineups</h2>
-        </div>
-
-        {/* Active Round Selector */}
-        <div className="mb-3">
-          <label className="block text-[9px] font-mono text-gray-500 uppercase tracking-widest mb-1.5">Current Tournament Stage</label>
-          <div className="flex gap-1.5">
-            {ROUNDS.map(r => (
-              <button
-                key={r.key}
-                onClick={() => setRound(r.key)}
-                className={`flex-1 py-1.5 px-2 rounded-lg font-display font-bold text-[10px] uppercase tracking-wider border transition-all duration-200 ${
-                  currentRound === r.key ? r.active : r.inactive
-                }`}
-              >
-                {r.icon} {r.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Add new match */}
-      <div className="border-t border-robo-border pt-3">
-        <label className="block text-[9px] font-mono text-gray-500 uppercase tracking-widest mb-2">Add Match</label>
-        <div className="flex items-end gap-2">
-          <div className="flex-1">
-            <label className="block text-[9px] font-mono text-gray-500 uppercase tracking-widest mb-1">Team A</label>
-            <select
-              value={newTeamA}
-              onChange={(e) => setNewTeamA(e.target.value)}
-              className="w-full bg-robo-dark border border-robo-border rounded-lg px-2 py-1.5 text-xs text-white font-body focus:border-robo-accent focus:outline-none cursor-pointer"
-            >
-              <option value="">Select...</option>
-              {teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
-            </select>
-          </div>
-          <span className="pb-1.5 text-gray-600 font-display font-bold text-xs">VS</span>
-          <div className="flex-1">
-            <label className="block text-[9px] font-mono text-gray-500 uppercase tracking-widest mb-1">Team B</label>
-            <select
-              value={newTeamB}
-              onChange={(e) => setNewTeamB(e.target.value)}
-              className="w-full bg-robo-dark border border-robo-border rounded-lg px-2 py-1.5 text-xs text-white font-body focus:border-robo-accent focus:outline-none cursor-pointer"
-            >
-              <option value="">Select...</option>
-              {teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
-            </select>
-          </div>
-          <div className="w-28">
-            <label className="block text-[9px] font-mono text-gray-500 uppercase tracking-widest mb-1">Stage</label>
-            <select
-              value={addToRound}
-              onChange={(e) => setAddToRound(e.target.value)}
-              className="w-full bg-robo-dark border border-robo-border rounded-lg px-2 py-1.5 text-xs text-white font-body focus:border-robo-accent focus:outline-none cursor-pointer"
-            >
-              {ROUNDS.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}
-            </select>
-          </div>
-          <button
-            type="button"
-            onClick={handleAddMatch}
-            disabled={!newTeamA || !newTeamB || newTeamA === newTeamB}
-            className="px-4 py-1.5 rounded-lg font-display font-bold text-xs uppercase bg-robo-accent/20 text-robo-accent border border-robo-accent/30 hover:bg-robo-accent/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
-          >
-            + Add
-          </button>
-        </div>
-      </div>
-
-      {/* Matches grouped by round */}
-      <div className="border-t border-robo-border pt-3 space-y-3 max-h-[350px] overflow-y-auto scrollbar-hide">
-        {ROUNDS.map(round => {
-          const roundMatches = matches.filter(m => (m.round || 'qualifiers') === round.key);
-          if (roundMatches.length === 0) return null;
-          return (
-            <div key={round.key}>
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className={`${round.heading} text-[10px]`}>{round.icon}</span>
-                <span className={`text-[10px] font-display font-bold ${round.heading} uppercase tracking-wider`}>{round.label}</span>
-                <span className="text-[9px] font-mono text-gray-600">({roundMatches.length})</span>
-              </div>
-              <div className="space-y-1">
-                <AnimatePresence initial={false}>
-                  {roundMatches.map(m => (
-                    <motion.div
-                      key={m.id}
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      transition={{ duration: 0.25, ease: 'easeInOut' }}
-                      className="overflow-hidden"
-                    >
-                      <div className={`flex items-center gap-2 rounded-lg p-2 border text-xs ${
-                        m.status === 'live' ? 'border-robo-red/40 bg-robo-red/5' :
-                        m.status === 'next' ? 'border-robo-yellow/20 bg-robo-yellow/5' :
-                        m.status === 'completed' ? 'border-gray-700/30 bg-gray-800/20 opacity-50' :
-                        'border-robo-border bg-robo-card/30'
-                      }`}>
-                        <span className="text-[9px] font-mono text-gray-500 w-6">{m.id.replace('m','')}</span>
-                        <span className="flex-1 font-body text-white truncate">
-                          {m.teamA} <span className="text-gray-600 mx-1">vs</span> {m.teamB}
-                        </span>
-                        <select
-                          value={m.status}
-                          onChange={(e) => updateMatchStatus(m.id, e.target.value)}
-                          className={`bg-transparent border rounded px-1.5 py-0.5 text-[9px] font-mono font-bold uppercase cursor-pointer focus:outline-none ${
-                            m.status === 'live' ? 'border-robo-red/40 text-robo-red' :
-                            m.status === 'next' ? 'border-robo-yellow/40 text-robo-yellow' :
-                            m.status === 'completed' ? 'border-gray-600 text-gray-500' :
-                            'border-gray-600 text-gray-400'
-                          }`}
-                        >
-                          {statusOpts.map(s => <option key={s} value={s}>{s.toUpperCase()}</option>)}
-                        </select>
-                        <button
-                          onClick={() => removeMatch(m.id)}
-                          className="w-6 h-6 flex items-center justify-center rounded bg-robo-red/10 border border-robo-red/30 text-robo-red hover:bg-robo-red/30 hover:text-white transition-colors text-xs font-bold flex-shrink-0"
-                          title="Remove match"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
-              </div>
-            </div>
-          );
-        })}
-        {matches.length === 0 && (
-          <p className="text-xs text-gray-600 font-mono text-center py-3">No matches added yet</p>
-        )}
       </div>
     </div>
   );

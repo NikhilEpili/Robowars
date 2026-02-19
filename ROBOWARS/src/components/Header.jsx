@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { useTournament } from '../store';
 
 const ROUND_LABELS = {
@@ -33,16 +32,11 @@ export default function Header() {
       <div className="max-w-[1800px] mx-auto px-6 py-1 flex items-center justify-between">
         {/* Left: Logo & Title */}
         <div className="flex items-center gap-3">
-          <motion.div
-            initial={{ rotate: -10, scale: 0.9 }}
-            animate={{ rotate: 0, scale: 1 }}
-            transition={{ type: 'spring', stiffness: 200 }}
-            className="relative"
-          >
+          <div className="relative">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-robo-accent to-cyan-600 flex items-center justify-center shadow-glow-cyan">
               <span className="font-display font-black text-sm text-robo-dark">RW</span>
             </div>
-          </motion.div>
+          </div>
           <div>
             <h1 className="font-display font-black text-xl text-white tracking-widest leading-none">
               ROBO<span className="text-robo-accent">WARS</span>

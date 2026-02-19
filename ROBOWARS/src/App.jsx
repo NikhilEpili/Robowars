@@ -11,8 +11,8 @@ export default function App() {
         <Routes>
           {/* Projector view — clean display, no admin controls */}
           <Route path="/" element={<DisplayPage />} />
-          {/* Admin / Judge panel — scoring form + mini preview */}
-          <Route path="/admin" element={<AdminPage />} />
+          {/* Scoring / Judge panel — scoring form */}
+          <Route path="/scoring" element={<AdminPage />} />
           {/* Full-screen match lineups page */}
           <Route path="/match" element={<MatchPage />} />
         </Routes>

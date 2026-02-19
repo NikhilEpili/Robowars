@@ -1,4 +1,3 @@
-import { motion, AnimatePresence } from 'framer-motion';
 import { useTournament } from '../store';
 import { useState, useEffect, useRef, useCallback } from 'react';
 
@@ -25,11 +24,9 @@ function ScoreBar({ value, maxInList, color }) {
     <div className="flex flex-col gap-0 min-w-[70px]">
       <span className="font-mono text-[10px] font-bold text-white leading-tight">{value.toFixed(1)}</span>
       <div className="h-0.5 bg-gray-800 rounded-full overflow-hidden">
-        <motion.div
+        <div
           className={`h-full rounded-full ${color}`}
-          initial={{ width: 0 }}
-          animate={{ width: `${pct}%` }}
-          transition={{ duration: 0.6, ease: 'easeOut' }}
+          style={{ width: `${pct}%`, transition: 'width 0.6s ease-out' }}
         />
       </div>
     </div>
@@ -49,17 +46,7 @@ function TeamRow({ team, rank, isTied, maxDmg, maxAggr, maxCtrl }) {
   }, [team.flashKey]);
 
   return (
-    <motion.div
-      layout
-      layoutId={`team-${team.id}`}
-      initial={{ opacity: 0, y: 30, scale: 0.97 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: -30, scale: 0.97 }}
-      transition={{
-        layout: { type: 'spring', stiffness: 200, damping: 25, mass: 0.8 },
-        opacity: { duration: 0.4, ease: 'easeInOut' },
-        scale: { duration: 0.3 },
-      }}
+    <div
       style={{ zIndex: flash ? 10 : 1 }}
       className={`
         relative grid grid-cols-[32px_1fr_1fr_1fr_1fr_80px] items-center gap-2 px-2 py-0.5 rounded-lg
@@ -93,18 +80,12 @@ function TeamRow({ team, rank, isTied, maxDmg, maxAggr, maxCtrl }) {
 
       {/* Total */}
       <div className="text-right">
-        <motion.span
-          key={team.total}
-          initial={{ scale: 1.4, color: '#00e676' }}
-          animate={{ scale: 1, color: '#ffffff' }}
-          transition={{ type: 'spring', stiffness: 300, damping: 15, duration: 0.6 }}
-          className="font-display font-bold text-sm block"
-        >
+        <span className="font-display font-bold text-sm block">
           {team.total.toFixed(1)}
-        </motion.span>
+        </span>
         <span className="text-[8px] text-gray-500 font-mono leading-none">pts</span>
       </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -200,19 +181,17 @@ export default function Leaderboard() {
         className="flex-1 min-h-0 overflow-y-auto scrollbar-hide space-y-0"
         style={{ scrollBehavior: 'auto' }}
       >
-        <AnimatePresence>
-          {sortedTeams.map((team, idx) => (
-            <TeamRow
-              key={team.id}
-              team={team}
-              rank={idx + 1}
-              isTied={tiedTotals.has(team.total)}
-              maxDmg={maxDmg}
-              maxAggr={maxAggr}
-              maxCtrl={maxCtrl}
-            />
-          ))}
-        </AnimatePresence>
+        {sortedTeams.map((team, idx) => (
+          <TeamRow
+            key={team.id}
+            team={team}
+            rank={idx + 1}
+            isTied={tiedTotals.has(team.total)}
+            maxDmg={maxDmg}
+            maxAggr={maxAggr}
+            maxCtrl={maxCtrl}
+          />
+        ))}
       </div>
     </div>
   );

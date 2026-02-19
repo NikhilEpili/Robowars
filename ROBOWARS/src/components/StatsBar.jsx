@@ -1,5 +1,4 @@
 import { useTournament } from '../store';
-import { motion } from 'framer-motion';
 
 export default function StatsBar() {
   const { sortedTeams, matches } = useTournament();
@@ -21,17 +20,11 @@ export default function StatsBar() {
 
   return (
     <div className="flex items-center justify-center gap-6 py-1 border-b border-robo-border bg-robo-card/30">
-      {stats.map((s, i) => (
-        <motion.div
-          key={s.label}
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: i * 0.05 }}
-          className="flex items-center gap-2"
-        >
+      {stats.map((s) => (
+        <div key={s.label} className="flex items-center gap-2">
           <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">{s.label}</span>
           <span className={`font-display font-bold text-sm ${s.color}`}>{s.value}</span>
-        </motion.div>
+        </div>
       ))}
     </div>
   );
