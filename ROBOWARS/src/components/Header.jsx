@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useTournament } from '../store';
 
 const ROUND_LABELS = {
@@ -7,21 +7,6 @@ const ROUND_LABELS = {
   'semi-finals': 'Semi Finals',
   'finals': 'Finals',
 };
-
-function Clock() {
-  const [time, setTime] = useState(new Date());
-
-  useEffect(() => {
-    const id = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  return (
-    <p className="font-mono font-bold text-xs text-white tabular-nums">
-      {time.toLocaleTimeString('en-US', { hour12: false })}
-    </p>
-  );
-}
 
 export default function Header() {
   const { currentRound } = useTournament();
@@ -64,10 +49,12 @@ export default function Header() {
             <p className="font-display font-bold text-xs text-robo-accent">{roundLabel}</p>
           </div>
           <div className="w-px h-6 bg-robo-border" />
-          <div className="text-right">
-            <p className="text-[9px] font-mono text-gray-500 uppercase tracking-widest">Time</p>
-            <Clock />
-          </div>
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-robo-card/80 backdrop-blur-sm border border-robo-accent/40 text-robo-accent hover:bg-robo-accent/10 transition-all font-display font-bold text-[10px] uppercase tracking-wider"
+          >
+            ← Home
+          </Link>
         </div>
       </div>
 

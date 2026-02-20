@@ -1,5 +1,5 @@
+import { Link } from 'react-router-dom';
 import Header from '../components/Header';
-import StatsBar from '../components/StatsBar';
 import Leaderboard from '../components/Leaderboard';
 import { MatchLineupPanel, MatchTicker } from '../components/MatchLineups';
 import { useTournament } from '../store';
@@ -11,7 +11,6 @@ export default function DisplayPage() {
   return (
     <div className="h-screen bg-robo-dark grid-bg flex flex-col overflow-hidden">
       <Header />
-      <StatsBar />
 
       {byeTeam && (
         <div className="flex items-center justify-center gap-2 py-1 bg-robo-purple/10 border-b border-robo-purple/20">

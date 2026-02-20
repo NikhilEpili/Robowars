@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTournament } from '../store';
 
@@ -22,11 +22,39 @@ const ROUNDS = [
 ];
 
 export default function MatchManager() {
-  const { teams, matches, currentRound, addMatch, removeMatch, setRound } = useTournament();
+  const { teams, matches, currentRound, addMatch, removeMatch, setRound, setCurrentMatch, activeTeams } = useTournament();
   const [newTeamA, setNewTeamA] = useState('');
   const [newTeamB, setNewTeamB] = useState('');
   const [addToRound, setAddToRound] = useState(currentRound || 'qualifiers');
+  const [viewRound, setViewRound] = useState(currentRound || 'qualifiers');
   const navigate = useNavigate();
+
+  // Update viewRound when currentRound changes
+  useEffect(() => {
+    setViewRound(currentRound || 'qualifiers');
+  }, [currentRound]);
+
+  // Memoize computed values to prevent unnecessary recalculations
+  const availableTeams = useMemo(() => 
+    teams.filter(t => activeTeams && activeTeams.includes(t.id)),
+    [teams, activeTeams]
+  );
+
+  const availableForRound = useMemo(() => {
+    // Get teams that have already played in current round
+    const teamsPlayedInRound = new Set();
+    matches
+      .filter(m => (m.round || 'qualifiers') === addToRound)
+      .forEach(m => {
+        const teamA = teams.find(t => t.name === m.teamA);
+        const teamB = teams.find(t => t.name === m.teamB);
+        if (teamA) teamsPlayedInRound.add(teamA.name);
+        if (teamB) teamsPlayedInRound.add(teamB.name);
+      });
+
+    // Show only teams that haven't played yet in this round
+    return availableTeams.filter(t => !teamsPlayedInRound.has(t.name));
+  }, [matches, addToRound, teams, availableTeams]);
 
   function handleAddMatch() {
     if (!newTeamA || !newTeamB || newTeamA === newTeamB) return;
@@ -35,16 +63,36 @@ export default function MatchManager() {
     setNewTeamB('');
   }
 
-  function handleStartScoring() {
+  function handleStartScoring(matchId) {
+    const match = matches.find(m => m.id === matchId);
+    const teamA = match ? teams.find(t => t.name === match.teamA) : null;
+    const teamB = match ? teams.find(t => t.name === match.teamB) : null;
+    const startTotals = {
+      ...(teamA ? { [teamA.id]: teamA.total } : {}),
+      ...(teamB ? { [teamB.id]: teamB.total } : {}),
+    };
+    setCurrentMatch({ matchId, startTotals });
     navigate('/scoring');
   }
 
   return (
     <div className="bg-robo-card/50 rounded-xl border border-robo-border p-4 space-y-4">
       <div>
-        <div className="flex items-center gap-2 mb-3">
-          <span className="w-2 h-2 rounded-full bg-robo-yellow" />
-          <h2 className="font-display font-bold text-sm text-white tracking-wider uppercase">Match Lineups</h2>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-robo-yellow" />
+            <h2 className="font-display font-bold text-sm text-white tracking-wider uppercase">Match Lineups</h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-[9px] font-mono text-gray-500 uppercase tracking-widest">View:</label>
+            <select
+              value={viewRound}
+              onChange={(e) => setViewRound(e.target.value)}
+              className="bg-robo-dark border border-robo-border rounded-lg px-2 py-1 text-xs text-white font-body focus:border-robo-accent focus:outline-none cursor-pointer"
+            >
+              {ROUNDS.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}
+            </select>
+          </div>
         </div>
 
         <div className="mb-3">
@@ -54,7 +102,7 @@ export default function MatchManager() {
               <button
                 key={r.key}
                 onClick={() => setRound(r.key)}
-                className={`flex-1 py-1.5 px-2 rounded-lg font-display font-bold text-[10px] uppercase tracking-wider border transition-all duration-200 ${
+                className={`flex-1 py-1.5 px-2 rounded-lg font-display font-bold text-[10px] uppercase tracking-wider border ${
                   currentRound === r.key ? r.active : r.inactive
                 }`}
               >
@@ -76,7 +124,7 @@ export default function MatchManager() {
               className="w-full bg-robo-dark border border-robo-border rounded-lg px-2 py-1.5 text-xs text-white font-body focus:border-robo-accent focus:outline-none cursor-pointer"
             >
               <option value="">Select...</option>
-              {teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+              {availableForRound.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
             </select>
           </div>
           <span className="pb-1.5 text-gray-600 font-display font-bold text-xs">VS</span>
@@ -88,7 +136,7 @@ export default function MatchManager() {
               className="w-full bg-robo-dark border border-robo-border rounded-lg px-2 py-1.5 text-xs text-white font-body focus:border-robo-accent focus:outline-none cursor-pointer"
             >
               <option value="">Select...</option>
-              {teams.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+              {availableForRound.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
             </select>
           </div>
           <div className="w-28">
@@ -105,7 +153,7 @@ export default function MatchManager() {
             type="button"
             onClick={handleAddMatch}
             disabled={!newTeamA || !newTeamB || newTeamA === newTeamB}
-            className="px-4 py-1.5 rounded-lg font-display font-bold text-xs uppercase bg-robo-accent/20 text-robo-accent border border-robo-accent/30 hover:bg-robo-accent/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+            className="px-4 py-1.5 rounded-lg font-display font-bold text-xs uppercase bg-robo-accent/20 text-robo-accent border border-robo-accent/30 hover:bg-robo-accent/30 disabled:opacity-30 disabled:cursor-not-allowed whitespace-nowrap"
           >
             + Add
           </button>
@@ -113,11 +161,14 @@ export default function MatchManager() {
       </div>
 
       <div className="border-t border-robo-border pt-3 space-y-3 max-h-[520px] overflow-y-auto scrollbar-hide">
-        {ROUNDS.map(round => {
-          const roundMatches = matches.filter(m => (m.round || 'qualifiers') === round.key);
-          if (roundMatches.length === 0) return null;
+        {(() => {
+          const roundMatches = matches.filter(m => (m.round || 'qualifiers') === viewRound);
+          if (roundMatches.length === 0) {
+            return <p className="text-xs text-gray-600 font-mono text-center py-3">No matches in this round</p>;
+          }
+          const round = ROUNDS.find(r => r.key === viewRound);
           return (
-            <div key={round.key}>
+            <div key={viewRound}>
               <div className="flex items-center gap-2 mb-1.5">
                 <span className={`${round.heading} text-[10px]`}>{round.icon}</span>
                 <span className={`text-[10px] font-display font-bold ${round.heading} uppercase tracking-wider`}>{round.label}</span>
@@ -135,17 +186,23 @@ export default function MatchManager() {
                     <span className="flex-1 font-body text-white truncate">
                       {m.teamA} <span className="text-gray-600 mx-1">vs</span> {m.teamB}
                     </span>
-                    <button
-                      type="button"
-                      onClick={handleStartScoring}
-                      className="px-2 py-0.5 rounded-md text-[9px] font-mono font-bold uppercase bg-robo-accent/10 text-robo-accent border border-robo-accent/30 hover:bg-robo-accent/20 transition-colors"
-                    >
-                      Start Scoring
-                    </button>
+                    {m.status === 'completed' ? (
+                      <span className="px-3 py-0.5 rounded-md text-[9px] font-mono font-bold uppercase text-robo-green border border-robo-green/30 bg-robo-green/10">
+                        ✓ Completed
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleStartScoring(m.id)}
+                        className="px-2 py-0.5 rounded-md text-[9px] font-mono font-bold uppercase bg-robo-accent/10 text-robo-accent border border-robo-accent/30 hover:bg-robo-accent/20"
+                      >
+                        Start Scoring
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => removeMatch(m.id)}
-                      className="w-6 h-6 flex items-center justify-center rounded bg-robo-red/10 border border-robo-red/30 text-robo-red hover:bg-robo-red/30 hover:text-white transition-colors text-xs font-bold flex-shrink-0"
+                      className="w-6 h-6 flex items-center justify-center rounded bg-robo-red/10 border border-robo-red/30 text-robo-red hover:bg-robo-red/30 hover:text-white text-xs font-bold flex-shrink-0"
                       title="Remove match"
                     >
                       ✕
@@ -155,10 +212,7 @@ export default function MatchManager() {
               </div>
             </div>
           );
-        })}
-        {matches.length === 0 && (
-          <p className="text-xs text-gray-600 font-mono text-center py-3">No matches added yet</p>
-        )}
+        })()}
       </div>
     </div>
   );

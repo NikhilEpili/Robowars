@@ -5,15 +5,11 @@ export default function StatsBar() {
 
   const completedCount = matches.filter(m => m.status === 'completed').length;
   const topTeam = sortedTeams[0];
-  const avgScore = sortedTeams.length > 0
-    ? (sortedTeams.reduce((sum, t) => sum + t.total, 0) / sortedTeams.length)
-    : 0;
   const totalRounds = sortedTeams.reduce((sum, t) => sum + t.rounds, 0);
 
   const stats = [
     { label: 'Teams', value: sortedTeams.length, color: 'text-robo-accent' },
     { label: 'Top Score', value: topTeam?.total.toFixed(1) ?? '—', color: 'text-robo-yellow' },
-    { label: 'Avg Score', value: avgScore.toFixed(1), color: 'text-robo-green' },
     { label: 'Rounds Scored', value: totalRounds, color: 'text-robo-purple' },
     { label: 'Matches Done', value: `${completedCount}/${matches.length}`, color: 'text-gray-400' },
   ];

@@ -1,5 +1,13 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTournament } from '../store';
-import { useState, useEffect, useRef, useCallback } from 'react';
+
+const ROUNDS = [
+  { key: 'qualifiers', label: 'Qualifiers' },
+  { key: 'quarter-finals', label: 'Quarter Finals' },
+  { key: 'semi-finals', label: 'Semi Finals' },
+  { key: 'finals', label: 'Finals' },
+];
 
 // ── Rank badge colors ──
 function rankStyle(rank) {
@@ -17,181 +25,295 @@ function RankBadge({ rank }) {
   );
 }
 
-// ── Score bar sparkline (no max cap — bar scales relative to top scorer) ──
-function ScoreBar({ value, maxInList, color }) {
-  const pct = maxInList > 0 ? Math.min((value / maxInList) * 100, 100) : 0;
+function ResultRow({ rank, name, score }) {
   return (
-    <div className="flex flex-col gap-0 min-w-[70px]">
-      <span className="font-mono text-[10px] font-bold text-white leading-tight">{value.toFixed(1)}</span>
-      <div className="h-0.5 bg-gray-800 rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full ${color}`}
-          style={{ width: `${pct}%`, transition: 'width 0.6s ease-out' }}
-        />
-      </div>
-    </div>
-  );
-}
-
-// ── Team Row ──
-function TeamRow({ team, rank, isTied, maxDmg, maxAggr, maxCtrl }) {
-  const [flash, setFlash] = useState(false);
-
-  useEffect(() => {
-    if (team.flashKey > 0) {
-      setFlash(true);
-      const timer = setTimeout(() => setFlash(false), 1500);
-      return () => clearTimeout(timer);
-    }
-  }, [team.flashKey]);
-
-  return (
-    <div
-      style={{ zIndex: flash ? 10 : 1 }}
-      className={`
-        relative grid grid-cols-[32px_1fr_1fr_1fr_1fr_80px] items-center gap-2 px-2 py-0.5 rounded-lg
-        border border-transparent transition-colors duration-500
-        ${flash ? 'border-robo-green/60 shadow-glow-green bg-green-900/15' : 'hover:bg-white/[0.02] hover:border-robo-border'}
-        ${rank <= 3 ? 'bg-white/[0.02]' : ''}
-        ${team.hasBye ? 'bg-robo-purple/5' : ''}
-      `}
-    >
-      {/* Rank */}
+    <div className="grid grid-cols-[32px_1fr_70px] items-center gap-2 px-2 py-1 rounded-lg border border-transparent hover:bg-white/[0.02] hover:border-robo-border">
       <RankBadge rank={rank} />
-
-      {/* Team Name */}
-      <div className="flex items-center gap-1.5 min-w-0">
-
-        <p className="font-display font-semibold text-white text-[11px] tracking-wide leading-tight truncate">
-          {team.name}
-          {team.hasBye && <span className="ml-1 text-robo-purple text-[8px] font-mono border border-robo-purple/40 px-0.5 rounded">BYE</span>}
-          {isTied && <span className="ml-1 text-robo-yellow text-[9px]">✦</span>}
-        </p>
-      </div>
-
-      {/* Damage */}
-      <ScoreBar value={team.damageTotal} maxInList={maxDmg} color="bg-gradient-to-r from-robo-red to-red-400" />
-
-      {/* Aggression */}
-      <ScoreBar value={team.aggrTotal} maxInList={maxAggr} color="bg-gradient-to-r from-robo-orange to-yellow-400" />
-
-      {/* Control */}
-      <ScoreBar value={team.ctrlTotal} maxInList={maxCtrl} color="bg-gradient-to-r from-robo-accent to-cyan-300" />
-
-      {/* Total */}
-      <div className="text-right">
-        <span className="font-display font-bold text-sm block">
-          {team.total.toFixed(1)}
-        </span>
-        <span className="text-[8px] text-gray-500 font-mono leading-none">pts</span>
-      </div>
+      <span className="font-display font-semibold text-white text-[11px] tracking-wide leading-tight truncate">
+        {name}
+      </span>
+      <span className="text-right font-mono font-bold text-[11px] text-white">
+        {score.toFixed(1)}
+      </span>
     </div>
   );
 }
 
 // ── Leaderboard ──
 export default function Leaderboard() {
-  const { sortedTeams, hasTie } = useTournament();
-  const scrollRef = useRef(null);
-  const [needsScroll, setNeedsScroll] = useState(false);
+  const { teams, matchResults, roundResults, currentRound, resetAll, advanceRound, matches } = useTournament();
+  const navigate = useNavigate();
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showAdvanceModal, setShowAdvanceModal] = useState(false);
+  const [advanceMessage, setAdvanceMessage] = useState('');
 
-  // Detect ties for visual indicators
-  const totals = sortedTeams.map(t => t.total);
-  const tiedTotals = new Set(
-    totals.filter((v, i) => totals.indexOf(v) !== i)
-  );
+  const [viewRound, setViewRound] = useState(currentRound || 'qualifiers');
 
-  // Compute dynamic maxes for bars (relative to top scorer in each category)
-  const maxDmg  = Math.max(...sortedTeams.map(t => t.damageTotal), 1);
-  const maxAggr = Math.max(...sortedTeams.map(t => t.aggrTotal), 1);
-  const maxCtrl = Math.max(...sortedTeams.map(t => t.ctrlTotal), 1);
+  const teamById = new Map(teams.map(t => [t.id, t]));
+  
+  // Get round-specific leaderboards based on viewRound
+  const roundData = roundResults?.[viewRound] || (viewRound === currentRound ? matchResults : { winners: [], losers: [] });
+  const winners = [...(roundData?.winners || [])]
+    .sort((a, b) => b.score - a.score);
+  const losers = [...(roundData?.losers || [])]
+    .sort((a, b) => b.score - a.score);
 
-  // Check if content overflows and needs auto-scroll
-  const checkOverflow = useCallback(() => {
-    const el = scrollRef.current;
-    if (el) setNeedsScroll(el.scrollHeight > el.clientHeight + 4);
-  }, []);
+  function handleReset() {
+    setShowResetConfirm(true);
+  }
 
-  useEffect(() => {
-    checkOverflow();
-    window.addEventListener('resize', checkOverflow);
-    return () => window.removeEventListener('resize', checkOverflow);
-  }, [checkOverflow, sortedTeams.length]);
+  function confirmReset() {
+    resetAll();
+    setShowResetConfirm(false);
+  }
 
-  // Auto-scroll: gently scroll down, pause, then back up
-  useEffect(() => {
-    if (!needsScroll) return;
-    const el = scrollRef.current;
-    if (!el) return;
-
-    let direction = 1; // 1 = down, -1 = up
-    let paused = false;
-    let pauseTimer;
-
-    const step = () => {
-      if (paused) return;
-      const maxScroll = el.scrollHeight - el.clientHeight;
-
-      if (direction === 1 && el.scrollTop >= maxScroll - 1) {
-        paused = true;
-        pauseTimer = setTimeout(() => { direction = -1; paused = false; }, 2000);
-      } else if (direction === -1 && el.scrollTop <= 1) {
-        paused = true;
-        pauseTimer = setTimeout(() => { direction = 1; paused = false; }, 2000);
-      } else {
-        el.scrollTop += direction * 0.5;
-      }
+  function handleAdvanceRound() {
+    const roundMap = {
+      'qualifiers': 'quarter-finals',
+      'quarter-finals': 'semi-finals',
+      'semi-finals': 'finals',
     };
+    const nextRound = roundMap[currentRound];
+    if (nextRound) {
+      advanceRound(currentRound, nextRound);
+      const roundLabels = {
+        'quarter-finals': 'Quarter Finals',
+        'semi-finals': 'Semi Finals',
+        'finals': 'Finals'
+      };
+      setAdvanceMessage(`Advanced to ${roundLabels[nextRound]}! Remaining teams have been auto-matched.`);
+      setShowAdvanceModal(true);
+      setViewRound(nextRound);
+    }
+  }
 
-    const id = setInterval(step, 30);
-    return () => { clearInterval(id); clearTimeout(pauseTimer); };
-  }, [needsScroll]);
+  function handleDownloadCSV() {
+    const lines = [];
+    
+    // Tournament Summary
+    lines.push('ROBOWARS TOURNAMENT - DETAILED RESULTS');
+    lines.push(`Generated: ${new Date().toLocaleString()}`);
+    lines.push('');
+    lines.push(`Total Teams: ${teams.length}`);
+    lines.push(`Total Winners: ${winners.length}`);
+    lines.push(`Total Losers: ${losers.length}`);
+    lines.push('');
+    lines.push('='.repeat(80));
+    lines.push('');
+    
+    // Winners Section - Detailed
+    lines.push('WINNERS LEADERBOARD - DETAILED BREAKDOWN');
+    lines.push('Rank,Team Name,Match ID,Match Score,Team Total Score,Damage Total,Aggression Total,Control Total,Rounds Played');
+    winners.forEach((entry, idx) => {
+      const team = teamById.get(entry.teamId);
+      lines.push(`${idx + 1},"${team?.name || 'Unknown'}",${entry.matchId},${entry.score.toFixed(1)},${team?.total.toFixed(1) || '0.0'},${team?.damageTotal.toFixed(1) || '0.0'},${team?.aggrTotal.toFixed(1) || '0.0'},${team?.ctrlTotal.toFixed(1) || '0.0'},${team?.rounds || 0}`);
+    });
+    
+    lines.push('');
+    lines.push('WINNERS SUMMARY');
+    lines.push('Rank,Team Name,Match Score');
+    winners.forEach((entry, idx) => {
+      const team = teamById.get(entry.teamId);
+      lines.push(`${idx + 1},"${team?.name || 'Unknown'}",${entry.score.toFixed(1)}`);
+    });
+    
+    // Empty line separator
+    lines.push('');
+    lines.push('='.repeat(80));
+    lines.push('');
+    
+    // Losers Section - Detailed
+    lines.push('LOSERS LEADERBOARD - DETAILED BREAKDOWN');
+    lines.push('Rank,Team Name,Match ID,Match Score,Team Total Score,Damage Total,Aggression Total,Control Total,Rounds Played');
+    losers.forEach((entry, idx) => {
+      const team = teamById.get(entry.teamId);
+      lines.push(`${idx + 1},"${team?.name || 'Unknown'}",${entry.matchId},${entry.score.toFixed(1)},${team?.total.toFixed(1) || '0.0'},${team?.damageTotal.toFixed(1) || '0.0'},${team?.aggrTotal.toFixed(1) || '0.0'},${team?.ctrlTotal.toFixed(1) || '0.0'},${team?.rounds || 0}`);
+    });
+    
+    lines.push('');
+    lines.push('LOSERS SUMMARY');
+    lines.push('Rank,Team Name,Match Score');
+    losers.forEach((entry, idx) => {
+      const team = teamById.get(entry.teamId);
+      lines.push(`${idx + 1},"${team?.name || 'Unknown'}",${entry.score.toFixed(1)}`);
+    });
+    
+    // Overall Team Statistics
+    lines.push('');
+    lines.push('='.repeat(80));
+    lines.push('');
+    lines.push('OVERALL TEAM STATISTICS');
+    lines.push('Team Name,Total Score,Damage Points,Aggression Points,Control Points,Rounds Played');
+    teams.forEach(team => {
+      lines.push(`"${team.name}",${team.total.toFixed(1)},${team.damageTotal.toFixed(1)},${team.aggrTotal.toFixed(1)},${team.ctrlTotal.toFixed(1)},${team.rounds}`);
+    });
+    
+    const csv = lines.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `robowars_detailed_report_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   return (
-    <div className="flex-1 flex flex-col min-h-0">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-0.5 flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-robo-red live-pulse" />
-          <h2 className="font-display font-bold text-sm text-white tracking-wider uppercase">
-            Live Leaderboard
-          </h2>
-        </div>
-        {hasTie && (
-          <div className="flex items-center gap-2 text-robo-yellow text-[10px] font-mono">
-            <span>✦</span>
-            <span>TIE — Judges' Decision</span>
+    <div className="flex-1 flex flex-col gap-4 min-h-0">
+      {/* Reset Confirmation Modal */}
+      {showResetConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-robo-card border border-robo-red/40 rounded-2xl p-8 max-w-md w-full mx-4 shadow-glow-red">
+            <h2 className="font-display font-bold text-2xl text-robo-red uppercase tracking-wider text-center mb-4">
+              ⚠ Warning
+            </h2>
+            <p className="text-sm text-gray-300 font-body text-center mb-2">
+              You are about to reset <strong className="text-white">ALL</strong> tournament data including:
+            </p>
+            <ul className="text-xs text-gray-400 font-mono mb-6 space-y-1 list-disc list-inside">
+              <li>All team scores</li>
+              <li>All match results</li>
+              <li>Winners and losers leaderboards</li>
+              <li>Match history</li>
+            </ul>
+            <p className="text-sm text-robo-red font-display font-bold text-center mb-8">
+              This action CANNOT be undone!
+            </p>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={confirmReset}
+                className="w-full py-3 px-6 rounded-xl font-display font-bold uppercase tracking-wider text-sm bg-robo-red/20 text-robo-red border border-robo-red/40 hover:bg-robo-red/30 transition-all"
+              >
+                Yes, Reset Everything
+              </button>
+              <button
+                onClick={() => setShowResetConfirm(false)}
+                className="w-full py-3 px-6 rounded-xl font-display font-bold uppercase tracking-wider text-sm bg-robo-card border border-robo-accent/40 text-robo-accent hover:bg-robo-accent/10 transition-all"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
-        )}
+        </div>
+      )}
+
+      {/* Advance Round Success Modal */}
+      {showAdvanceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+          <div className="bg-robo-card border border-robo-yellow/40 rounded-2xl p-8 max-w-md w-full mx-4 shadow-glow-yellow">
+            <h2 className="font-display font-bold text-2xl text-robo-yellow uppercase tracking-wider text-center mb-4">
+              ✨ Round Advanced!
+            </h2>
+            <p className="text-base text-gray-200 font-body text-center mb-6 leading-relaxed">
+              {advanceMessage}
+            </p>
+            <button
+              onClick={() => setShowAdvanceModal(false)}
+              className="w-full py-3 px-6 rounded-xl font-display font-bold uppercase tracking-wider text-sm bg-robo-yellow/20 text-robo-yellow border border-robo-yellow/40 hover:bg-robo-yellow/30 transition-all"
+            >
+              Continue
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-robo-accent" />
+          <h2 className="font-display font-bold text-sm text-white tracking-wider uppercase">Tournament Results</h2>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-[9px] font-mono text-gray-500 uppercase tracking-widest">View:</label>
+          <select
+            value={viewRound}
+            onChange={(e) => setViewRound(e.target.value)}
+            className="bg-robo-dark border border-robo-border rounded-lg px-2 py-1 text-xs text-white font-body focus:border-robo-accent focus:outline-none cursor-pointer"
+          >
+            {ROUNDS.map(r => <option key={r.key} value={r.key}>{r.label}</option>)}
+          </select>
+        </div>
       </div>
 
-      {/* Column Headers */}
-      <div className="grid grid-cols-[32px_1fr_1fr_1fr_1fr_80px] gap-2 px-2 py-0.5 text-[8px] text-gray-500 font-mono uppercase tracking-widest border-b border-robo-border mb-0 flex-shrink-0">
-        <span>Rank</span>
-        <span>Team</span>
-        <span>Damage</span>
-        <span>Aggression</span>
-        <span>Control</span>
-        <span className="text-right">Total</span>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 rounded-full bg-robo-yellow" />
+          <h2 className="font-display font-bold text-sm text-white tracking-wider uppercase">Round Actions</h2>
+        </div>
+        <div className="flex items-center gap-2">
+          {currentRound !== 'finals' && winners.length > 0 && (
+            <button
+              type="button"
+              onClick={handleAdvanceRound}
+              className="px-3 py-1.5 rounded-lg font-display font-bold uppercase tracking-wider text-[10px] bg-robo-yellow/20 border border-robo-yellow/40 text-robo-yellow hover:bg-robo-yellow/30 transition-colors"
+            >
+              → Advance Round
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleDownloadCSV}
+            className="px-3 py-1.5 rounded-lg font-display font-bold uppercase tracking-wider text-[10px] bg-robo-card border border-robo-green/30 text-robo-green hover:bg-robo-green/10 transition-colors"
+          >
+            ↓ CSV
+          </button>
+          <button
+            type="button"
+            onClick={handleReset}
+            className="px-3 py-1.5 rounded-lg font-display font-bold uppercase tracking-wider text-[10px] bg-robo-card border border-robo-red/30 text-robo-red hover:bg-robo-red/10 transition-colors"
+          >
+            Reset All
+          </button>
+        </div>
+      </div>
+      
+      <div className="bg-robo-card/50 rounded-xl border border-robo-border p-3 flex flex-col min-h-0">
+        <div className="flex items-center gap-2 mb-2">
+          <div className="w-2 h-2 rounded-full bg-robo-green" />
+          <h2 className="font-display font-bold text-sm text-white tracking-wider uppercase">Winners Leaderboard</h2>
+        </div>
+        <div className="grid grid-cols-[32px_1fr_70px] gap-2 px-2 py-0.5 text-[8px] text-gray-500 font-mono uppercase tracking-widest border-b border-robo-border mb-1">
+          <span>Rank</span>
+          <span>Team</span>
+          <span className="text-right">Score</span>
+        </div>
+        <div className="flex-1 overflow-y-auto scrollbar-hide space-y-0">
+          {winners.length === 0 && (
+            <div className="text-center text-xs font-mono text-gray-600 py-6">No winners yet</div>
+          )}
+          {winners.map((entry, idx) => (
+            <ResultRow
+              key={`${entry.matchId}-${entry.teamId}`}
+              rank={idx + 1}
+              name={teamById.get(entry.teamId)?.name || 'Unknown'}
+              score={entry.score}
+            />
+          ))}
+        </div>
       </div>
 
-      {/* Animated rows — auto-scrolls if overflowing */}
-      <div
-        ref={scrollRef}
-        className="flex-1 min-h-0 overflow-y-auto scrollbar-hide space-y-0"
-        style={{ scrollBehavior: 'auto' }}
-      >
-        {sortedTeams.map((team, idx) => (
-          <TeamRow
-            key={team.id}
-            team={team}
-            rank={idx + 1}
-            isTied={tiedTotals.has(team.total)}
-            maxDmg={maxDmg}
-            maxAggr={maxAggr}
-            maxCtrl={maxCtrl}
-          />
-        ))}
+      <div className="bg-robo-card/50 rounded-xl border border-robo-border p-3 flex flex-col min-h-0">
+        <div className="flex items-center gap-2 mb-2">
+          <div className="w-2 h-2 rounded-full bg-robo-red" />
+          <h2 className="font-display font-bold text-sm text-white tracking-wider uppercase">Losers Leaderboard</h2>
+        </div>
+        <div className="grid grid-cols-[32px_1fr_70px] gap-2 px-2 py-0.5 text-[8px] text-gray-500 font-mono uppercase tracking-widest border-b border-robo-border mb-1">
+          <span>Rank</span>
+          <span>Team</span>
+          <span className="text-right">Score</span>
+        </div>
+        <div className="flex-1 overflow-y-auto scrollbar-hide space-y-0">
+          {losers.length === 0 && (
+            <div className="text-center text-xs font-mono text-gray-600 py-6">No losers yet</div>
+          )}
+          {losers.map((entry, idx) => (
+            <ResultRow
+              key={`${entry.matchId}-${entry.teamId}`}
+              rank={idx + 1}
+              name={teamById.get(entry.teamId)?.name || 'Unknown'}
+              score={entry.score}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );

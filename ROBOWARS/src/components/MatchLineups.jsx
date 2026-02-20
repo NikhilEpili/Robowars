@@ -1,4 +1,4 @@
-import { useTournament } from '../store';
+import { useTournament } from '../store';\nimport { useNavigate } from 'react-router-dom';\n\nconst ROUNDS = [\n  { key: 'qualifiers', label: 'Qualifiers' },\n  { key: 'quarter-finals', label: 'Quarter Finals' },\n  { key: 'semi-finals', label: 'Semi Finals' },\n  { key: 'finals', label: 'Finals' },\n];
 
 function StatusBadge({ status }) {
   const styles = {
@@ -61,7 +61,8 @@ function MatchCard({ match, index }) {
 
 // ── Side panel version ──
 export function MatchLineupPanel({ showAdvance = true }) {
-  const { matches, advanceMatch } = useTournament();
+  const { matches, advanceMatch, showProceedToMatches, setProceedToMatches, currentRound } = useTournament();
+  const navigate = useNavigate();
   const activeMatches = matches.filter(m => m.status !== 'completed');
 
   return (
@@ -79,6 +80,24 @@ export function MatchLineupPanel({ showAdvance = true }) {
           </button>
         )}
       </div>
+
+      {showProceedToMatches && (
+        <div className="mb-3 bg-robo-accent/10 border border-robo-accent/30 rounded-xl p-3">
+          <p className="text-xs text-gray-300 mb-2 text-center">
+            Matches generated for <span className="text-robo-accent font-bold">{ROUNDS.find(r => r.key === currentRound)?.label}</span>
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setProceedToMatches(false);
+              navigate('/match');
+            }}
+            className="w-full py-2 px-4 rounded-lg font-display font-bold uppercase tracking-wider text-xs bg-gradient-to-r from-robo-accent to-cyan-400 text-robo-dark hover:shadow-glow-cyan"
+          >
+            → Proceed to Matches
+          </button>
+        </div>
+      )}
 
       <div className="space-y-1.5">
         {activeMatches.map((match, idx) => (

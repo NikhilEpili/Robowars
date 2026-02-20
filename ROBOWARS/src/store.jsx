@@ -49,6 +49,12 @@ function loadState() {
           matches: parsed.matches || [],
           byeTeamId: parsed.byeTeamId || null,
           currentRound: parsed.currentRound || 'qualifiers',
+          currentMatchId: parsed.currentMatchId || null,
+          currentMatchStartTotals: parsed.currentMatchStartTotals || {},
+          matchResults: parsed.matchResults || { winners: [], losers: [] },
+          roundResults: parsed.roundResults || { qualifiers: { winners: [], losers: [] } },
+          activeTeams: parsed.activeTeams || initialTeams.map(t => t.id),
+          eliminatedTeams: parsed.eliminatedTeams || [],
         };
       }
     }
@@ -146,6 +152,42 @@ function reducer(state, action) {
     case 'SET_ROUND': {
       return { ...state, currentRound: action.payload };
     }
+    case 'SET_PROCEED_TO_MATCHES': {
+      return { ...state, showProceedToMatches: action.payload };
+    }
+    case 'SET_CURRENT_MATCH': {
+      return {
+        ...state,
+        currentMatchId: action.payload?.matchId ?? null,
+        currentMatchStartTotals: action.payload?.startTotals ?? {},
+      };
+    }
+    case 'RECORD_MATCH_RESULT': {
+      const { winners, losers, matchId, round } = action.payload;
+      const keepWinner = state.matchResults.winners.filter(r => r.matchId !== matchId);
+      const keepLoser = state.matchResults.losers.filter(r => r.matchId !== matchId);
+      
+      const currentRound = round || state.currentRound || 'qualifiers';
+      const roundKey = currentRound;
+      const roundData = state.roundResults[roundKey] || { winners: [], losers: [] };
+      const keepRoundWinner = roundData.winners.filter(r => r.matchId !== matchId);
+      const keepRoundLoser = roundData.losers.filter(r => r.matchId !== matchId);
+      
+      return {
+        ...state,
+        matchResults: {
+          winners: [...keepWinner, ...winners],
+          losers: [...keepLoser, ...losers],
+        },
+        roundResults: {
+          ...state.roundResults,
+          [roundKey]: {
+            winners: [...keepRoundWinner, ...winners],
+            losers: [...keepRoundLoser, ...losers],
+          },
+        },
+      };
+    }
     case 'SYNC_STATE': {
       return action.payload;
     }
@@ -155,6 +197,137 @@ function reducer(state, action) {
         matches: [],
         byeTeamId: null,
         currentRound: 'qualifiers',
+        currentMatchId: null,
+        currentMatchStartTotals: {},
+        matchResults: { winners: [], losers: [] },
+      };
+    }
+    case 'ADD_TEAM': {
+      const newTeamName = action.payload;
+      const newId = Math.max(0, ...state.teams.map(t => t.id)) + 1;
+      return {
+        ...state,
+        teams: [...state.teams, hydrateTeam({ id: newId, name: newTeamName })],
+      };
+    }
+    case 'REMOVE_TEAM': {
+      const teamId = action.payload;
+      return {
+        ...state,
+        teams: state.teams.filter(t => t.id !== teamId),
+      };
+    }
+    case 'ADVANCE_ROUND': {
+      // payload: { fromRound, toRound }
+      const { fromRound, toRound } = action.payload;
+      const roundData = state.roundResults[fromRound] || { winners: [], losers: [] };
+      const winners = roundData.winners;
+      const losers = roundData.losers;
+      
+      let advancingTeamIds = new Set();
+      let nextMatches = [];
+      
+      // Different matchmaking logic based on the round we're advancing from
+      if (fromRound === 'qualifiers') {
+        // After qualifiers: Top winner vs top loser, then 2nd vs 7th, 3rd vs 6th, 4th vs 5th (winners only)
+        const winnerArray = [...winners].sort((a, b) => b.score - a.score);
+        const loserArray = [...losers].sort((a, b) => b.score - a.score);
+        
+        // All winners advance
+        winnerArray.forEach(entry => advancingTeamIds.add(entry.teamId));
+        
+        // Top loser advances
+        if (loserArray.length > 0) {
+          advancingTeamIds.add(loserArray[0].teamId);
+        }
+        
+        // Match 1: Top winner vs top loser
+        if (winnerArray.length > 0 && loserArray.length > 0) {
+          const team1 = state.teams.find(t => t.id === winnerArray[0].teamId);
+          const team2 = state.teams.find(t => t.id === loserArray[0].teamId);
+          if (team1 && team2) {
+            nextMatches.push({
+              id: `m${Math.random().toString(36).slice(2, 10)}`,
+              teamA: team1.name,
+              teamB: team2.name,
+              status: 'upcoming',
+              round: toRound,
+            });
+          }
+        }
+        
+        // Remaining winners: 2nd vs 7th, 3rd vs 6th, 4th vs 5th
+        const remainingWinners = winnerArray.slice(1);
+        const matchCount = Math.floor(remainingWinners.length / 2);
+        
+        for (let i = 0; i < matchCount; i++) {
+          const team1Id = remainingWinners[i].teamId;
+          const team2Id = remainingWinners[remainingWinners.length - 1 - i].teamId;
+          const team1 = state.teams.find(t => t.id === team1Id);
+          const team2 = state.teams.find(t => t.id === team2Id);
+          if (team1 && team2) {
+            nextMatches.push({
+              id: `m${Math.random().toString(36).slice(2, 10)}`,
+              teamA: team1.name,
+              teamB: team2.name,
+              status: 'upcoming',
+              round: toRound,
+            });
+          }
+        }
+      } else {
+        // After quarter-finals and beyond: Pure elimination, only winners advance
+        const winnerArray = [...winners].sort((a, b) => b.score - a.score);
+        
+        // Only winners advance
+        winnerArray.forEach(entry => advancingTeamIds.add(entry.teamId));
+        
+        // Matchmaking: 1st vs last, 2nd vs second-last, etc.
+        const matchCount = Math.floor(winnerArray.length / 2);
+        
+        for (let i = 0; i < matchCount; i++) {
+          const team1Id = winnerArray[i].teamId;
+          const team2Id = winnerArray[winnerArray.length - 1 - i].teamId;
+          const team1 = state.teams.find(t => t.id === team1Id);
+          const team2 = state.teams.find(t => t.id === team2Id);
+          if (team1 && team2) {
+            nextMatches.push({
+              id: `m${Math.random().toString(36).slice(2, 10)}`,
+              teamA: team1.name,
+              teamB: team2.name,
+              status: 'upcoming',
+              round: toRound,
+            });
+          }
+        }
+      }
+      
+      // Teams that don't advance are eliminated
+      const newEliminated = state.teams
+        .filter(t => state.activeTeams.includes(t.id) && !advancingTeamIds.has(t.id))
+        .map(t => t.id);
+      
+      // Reset scores for all teams to zero
+      const resetTeams = state.teams.map(t => ({
+        ...t,
+        total: 0,
+        damageTotal: 0,
+        aggrTotal: 0,
+        ctrlTotal: 0,
+        rounds: 0,
+      }));
+      
+      return {
+        ...state,
+        teams: resetTeams,
+        activeTeams: Array.from(advancingTeamIds),
+        eliminatedTeams: [...state.eliminatedTeams, ...newEliminated],
+        roundResults: {
+          ...state.roundResults,
+          [toRound]: { winners: [], losers: [] },
+        },
+        matches: [...state.matches, ...nextMatches],
+        showProceedToMatches: true,
       };
     }
     default:
@@ -167,6 +340,13 @@ const defaultState = {
   matches: [],
   byeTeamId: null,
   currentRound: 'qualifiers',
+  currentMatchId: null,
+  currentMatchStartTotals: {},
+  matchResults: { winners: [], losers: [] },
+  roundResults: { qualifiers: { winners: [], losers: [] } },
+  activeTeams: initialTeams.map(t => t.id),
+  eliminatedTeams: [],
+  showProceedToMatches: false,
 };
 
 // ── Context ──
@@ -176,6 +356,12 @@ export function TournamentProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, null, () => loadState() || defaultState);
   const channelRef = useRef(null);
   const tabId = useRef(Math.random().toString(36).slice(2));
+  const stateRef = useRef(state);
+  
+  // Keep stateRef in sync
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   // Set up BroadcastChannel for cross-tab sync
   useEffect(() => {
@@ -193,12 +379,16 @@ export function TournamentProvider({ children }) {
     return () => channel.close();
   }, []);
 
-  // Save to localStorage & broadcast on every state change
+  // Save to localStorage & broadcast on every state change (debounced)
   useEffect(() => {
-    saveState(state);
-    if (channelRef.current) {
-      channelRef.current.postMessage({ type: 'STATE_UPDATE', state, senderId: tabId.current });
-    }
+    const timeoutId = setTimeout(() => {
+      saveState(state);
+      if (channelRef.current) {
+        channelRef.current.postMessage({ type: 'STATE_UPDATE', state, senderId: tabId.current });
+      }
+    }, 50); // 50ms debounce to prevent rapid fire updates
+    
+    return () => clearTimeout(timeoutId);
   }, [state]);
 
   const updateTeam = useCallback((payload) => {
@@ -233,6 +423,26 @@ export function TournamentProvider({ children }) {
     dispatch({ type: 'SET_ROUND', payload: round });
   }, []);
 
+  const setCurrentMatch = useCallback((payload) => {
+    dispatch({ type: 'SET_CURRENT_MATCH', payload });
+  }, []);
+
+  const recordMatchResult = useCallback((payload) => {
+    dispatch({ type: 'RECORD_MATCH_RESULT', payload });
+  }, []);
+
+  const addTeam = useCallback((teamName) => {
+    dispatch({ type: 'ADD_TEAM', payload: teamName });
+  }, []);
+
+  const removeTeam = useCallback((teamId) => {
+    dispatch({ type: 'REMOVE_TEAM', payload: teamId });
+  }, []);
+
+  const advanceRound = useCallback((fromRound, toRound) => {
+    dispatch({ type: 'ADVANCE_ROUND', payload: { fromRound, toRound } });
+  }, []);
+
   // Sort teams by total descending, stable sort by id for ties
   const sortedTeams = [...state.teams].sort((a, b) => {
     if (b.total !== a.total) return b.total - a.total;
@@ -241,6 +451,10 @@ export function TournamentProvider({ children }) {
 
   const hasTie = sortedTeams.some((t, i) => i > 0 && t.total === sortedTeams[i - 1].total);
 
+  const setProceedToMatches = useCallback((show) => {
+    dispatch({ type: 'SET_PROCEED_TO_MATCHES', payload: show });
+  }, []);
+
   return (
     <TournamentContext.Provider value={{
       teams: state.teams,
@@ -248,6 +462,13 @@ export function TournamentProvider({ children }) {
       matches: state.matches,
       byeTeamId: state.byeTeamId,
       currentRound: state.currentRound || 'qualifiers',
+      currentMatchId: state.currentMatchId || null,
+      currentMatchStartTotals: state.currentMatchStartTotals || {},
+      matchResults: state.matchResults || { winners: [], losers: [] },
+      roundResults: state.roundResults || { qualifiers: { winners: [], losers: [] } },
+      activeTeams: state.activeTeams || [],
+      eliminatedTeams: state.eliminatedTeams || [],
+      showProceedToMatches: state.showProceedToMatches || false,
       hasTie,
       updateTeam,
       advanceMatch,
@@ -257,6 +478,12 @@ export function TournamentProvider({ children }) {
       updateMatchStatus,
       resetAll,
       setRound,
+      setCurrentMatch,
+      recordMatchResult,
+      addTeam,
+      removeTeam,
+      advanceRound,
+      setProceedToMatches,
     }}>
       {children}
     </TournamentContext.Provider>

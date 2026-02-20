@@ -1,9 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useTournament } from '../store';
 import {
   DAMAGE_MULTIPLIERS, AGGRESSION_MULTIPLIERS, CONTROL_MULTIPLIERS,
   DAMAGE_BASE, AGGRESSION_BASE, CONTROL_BASE,
-  calcDamageEntry, calcAggressionEntry, calcControlEntry,
   calcSubmissionTotal,
 } from '../scoring';
 
@@ -138,81 +138,289 @@ function CategorySection({ title, color, dotColor, base, entries, setEntries, ty
 }
 
 // ── ADMIN PAGE ──
-export default function AdminPage() {
-  const { teams, sortedTeams, updateTeam, resetAll } = useTournament();
-  const [submitted, setSubmitted] = useState(false);
-  const [selectedTeamId, setSelectedTeamId] = useState(teams[0]?.id ?? 1);
-
-  // Multi-entry arrays (each entry: { severity/factor, hits })
-  const [damageEntries, setDamageEntries] = useState([{ severity: 'Cosmetic', hits: 1 }]);
-  const [aggrEntries, setAggrEntries] = useState([{ factor: 'Reactive', hits: 1 }]);
-  const [ctrlEntries, setCtrlEntries] = useState([{ factor: 'Evasive', hits: 1 }]);
-
-  const selectedTeam = teams.find(t => t.id === selectedTeamId);
+function ScorePanel({
+  team,
+  label,
+  accent = 'text-robo-accent',
+  damageEntries,
+  setDamageEntries,
+  aggrEntries,
+  setAggrEntries,
+  ctrlEntries,
+  setCtrlEntries,
+}) {
   const preview = calcSubmissionTotal(damageEntries, aggrEntries, ctrlEntries);
 
-  const handleTeamChange = useCallback((id) => {
-    setSelectedTeamId(Number(id));
-    // Reset entries for new team
-    setDamageEntries([{ severity: 'Cosmetic', hits: 1 }]);
-    setAggrEntries([{ factor: 'Reactive', hits: 1 }]);
-    setCtrlEntries([{ factor: 'Evasive', hits: 1 }]);
-  }, []);
+  return (
+    <div className="bg-robo-card/50 rounded-xl border border-robo-border p-5">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <p className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">{label}</p>
+          <h2 className={`font-display font-bold text-lg uppercase tracking-wider ${accent}`}>
+            {team?.name || 'No team selected'}
+          </h2>
+        </div>
+        {team && (
+          <div className="text-right text-[10px] font-mono text-gray-500">
+            <div>Current</div>
+            <div className="text-white font-bold text-sm">{team.total.toFixed(1)} pts</div>
+          </div>
+        )}
+      </div>
 
-  function handleSubmit(e) {
-    e.preventDefault();
-    // Filter out zero-hit entries
-    const dmgFiltered = damageEntries.filter(e => e.hits > 0);
-    const aggrFiltered = aggrEntries.filter(e => e.hits > 0);
-    const ctrlFiltered = ctrlEntries.filter(e => e.hits > 0);
+      <div className="space-y-5">
+        <CategorySection
+          title="Damage"
+          color="text-robo-red"
+          dotColor="bg-robo-red"
+          base={DAMAGE_BASE}
+          entries={damageEntries}
+          setEntries={setDamageEntries}
+          typeKey="severity"
+          typeLabel="Severity"
+          multipliers={DAMAGE_MULTIPLIERS}
+          defaultType="Cosmetic"
+        />
 
-    if (dmgFiltered.length === 0 && aggrFiltered.length === 0 && ctrlFiltered.length === 0) return;
+        <CategorySection
+          title="Aggression"
+          color="text-robo-orange"
+          dotColor="bg-robo-orange"
+          base={AGGRESSION_BASE}
+          entries={aggrEntries}
+          setEntries={setAggrEntries}
+          typeKey="factor"
+          typeLabel="Factor"
+          multipliers={AGGRESSION_MULTIPLIERS}
+          defaultType="Reactive"
+        />
 
-    updateTeam({
-      teamId: selectedTeamId,
-      damageEntries: dmgFiltered,
-      aggrEntries: aggrFiltered,
-      ctrlEntries: ctrlFiltered,
-    });
+        <CategorySection
+          title="Control"
+          color="text-robo-accent"
+          dotColor="bg-robo-accent"
+          base={CONTROL_BASE}
+          entries={ctrlEntries}
+          setEntries={setCtrlEntries}
+          typeKey="factor"
+          typeLabel="Factor"
+          multipliers={CONTROL_MULTIPLIERS}
+          defaultType="Evasive"
+        />
 
-    // Reset form
-    setDamageEntries([{ severity: 'Cosmetic', hits: 1 }]);
-    setAggrEntries([{ factor: 'Reactive', hits: 1 }]);
-    setCtrlEntries([{ factor: 'Evasive', hits: 1 }]);
-    setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 2000);
+        <div className="bg-robo-dark rounded-xl p-4 border border-robo-border space-y-3">
+          <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest block">Submission Preview</span>
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div>
+              <span className="text-[10px] font-mono text-gray-500 block">Damage</span>
+              <span className="font-display font-bold text-robo-red">{preview.dmg.toFixed(1)}</span>
+            </div>
+            <div>
+              <span className="text-[10px] font-mono text-gray-500 block">Aggression</span>
+              <span className="font-display font-bold text-robo-orange">{preview.aggr.toFixed(1)}</span>
+            </div>
+            <div>
+              <span className="text-[10px] font-mono text-gray-500 block">Control</span>
+              <span className="font-display font-bold text-robo-accent">{preview.ctrl.toFixed(1)}</span>
+            </div>
+          </div>
+          <div className="border-t border-robo-border pt-3 flex items-center justify-between">
+            <span className="font-body text-sm text-gray-400">+ This round</span>
+            <span className="font-display font-bold text-xl">+{preview.total.toFixed(1)}</span>
+          </div>
+          {team && (
+            <div className="flex items-center justify-between">
+              <span className="font-display font-bold text-white uppercase tracking-wider text-sm">New Total</span>
+              <span className="font-display font-bold text-2xl text-white">
+                {(team.total + preview.total).toFixed(1)}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function AdminPage() {
+  const {
+    teams,
+    sortedTeams,
+    matches,
+    currentMatchId,
+    currentMatchStartTotals,
+    updateTeam,
+    updateMatchStatus,
+    setCurrentMatch,
+    recordMatchResult,
+    resetAll,
+  } = useTournament();
+  const [submittedAll, setSubmittedAll] = useState(false);
+  const [matchEnded, setMatchEnded] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+
+  const [damageEntriesA, setDamageEntriesA] = useState([]);
+  const [aggrEntriesA, setAggrEntriesA] = useState([]);
+  const [ctrlEntriesA, setCtrlEntriesA] = useState([]);
+
+  const [damageEntriesB, setDamageEntriesB] = useState([]);
+  const [aggrEntriesB, setAggrEntriesB] = useState([]);
+  const [ctrlEntriesB, setCtrlEntriesB] = useState([]);
+
+  const currentMatch = matches.find(m => m.id === currentMatchId) || null;
+  const teamA = currentMatch ? teams.find(t => t.name === currentMatch.teamA) : null;
+  const teamB = currentMatch ? teams.find(t => t.name === currentMatch.teamB) : null;
+
+  useEffect(() => {
+    setDamageEntriesA([]);
+    setAggrEntriesA([]);
+    setCtrlEntriesA([]);
+    setDamageEntriesB([]);
+    setAggrEntriesB([]);
+    setCtrlEntriesB([]);
+    setMatchEnded(false);
+  }, [currentMatchId]);
+
+  function handleSubmitAll() {
+    if (!currentMatch || (!teamA && !teamB)) return;
+
+    if (teamA) {
+      const dmgA = damageEntriesA.filter(e => e.hits > 0);
+      const aggrA = aggrEntriesA.filter(e => e.hits > 0);
+      const ctrlA = ctrlEntriesA.filter(e => e.hits > 0);
+      if (dmgA.length || aggrA.length || ctrlA.length) {
+        updateTeam({ teamId: teamA.id, damageEntries: dmgA, aggrEntries: aggrA, ctrlEntries: ctrlA });
+      }
+    }
+
+    if (teamB) {
+      const dmgB = damageEntriesB.filter(e => e.hits > 0);
+      const aggrB = aggrEntriesB.filter(e => e.hits > 0);
+      const ctrlB = ctrlEntriesB.filter(e => e.hits > 0);
+      if (dmgB.length || aggrB.length || ctrlB.length) {
+        updateTeam({ teamId: teamB.id, damageEntries: dmgB, aggrEntries: aggrB, ctrlEntries: ctrlB });
+      }
+    }
+
+    setDamageEntriesA([{ severity: 'Cosmetic', hits: 1 }]);
+    setAggrEntriesA([{ factor: 'Reactive', hits: 1 }]);
+    setCtrlEntriesA([{ factor: 'Evasive', hits: 1 }]);
+    setDamageEntriesB([{ severity: 'Cosmetic', hits: 1 }]);
+    setAggrEntriesB([{ factor: 'Reactive', hits: 1 }]);
+    setCtrlEntriesB([{ factor: 'Evasive', hits: 1 }]);
+    setSubmittedAll(true);
+    setTimeout(() => setSubmittedAll(false), 1500);
+  }
+
+  function handleEndMatch() {
+    if (!currentMatch) return;
+    const startA = teamA ? currentMatchStartTotals[teamA.id] ?? teamA.total : 0;
+    const startB = teamB ? currentMatchStartTotals[teamB.id] ?? teamB.total : 0;
+    const scoreA = teamA ? Number((teamA.total - startA).toFixed(1)) : 0;
+    const scoreB = teamB ? Number((teamB.total - startB).toFixed(1)) : 0;
+
+    const winners = [];
+    const losers = [];
+
+    if (teamA && teamB) {
+      if (scoreA > scoreB) {
+        winners.push({ matchId: currentMatch.id, teamId: teamA.id, score: scoreA });
+        losers.push({ matchId: currentMatch.id, teamId: teamB.id, score: scoreB });
+      } else if (scoreB > scoreA) {
+        winners.push({ matchId: currentMatch.id, teamId: teamB.id, score: scoreB });
+        losers.push({ matchId: currentMatch.id, teamId: teamA.id, score: scoreA });
+      } else {
+        winners.push({ matchId: currentMatch.id, teamId: teamA.id, score: scoreA });
+        winners.push({ matchId: currentMatch.id, teamId: teamB.id, score: scoreB });
+      }
+    }
+
+    if (winners.length || losers.length) {
+      recordMatchResult({ matchId: currentMatch.id, winners, losers, round: currentMatch.round });
+    }
+
+    updateMatchStatus(currentMatch.id, 'completed');
+    setCurrentMatch({ matchId: null, startTotals: {} });
+    setMatchEnded(true);
   }
 
   function handleReset() {
-    if (window.confirm('Reset ALL scores and matches? This cannot be undone!')) {
-      resetAll();
-    }
+    setShowResetConfirm(true);
   }
 
-  function handleDownloadCSV() {
-    const headers = ['Rank', 'Team', 'Damage', 'Aggression', 'Control', 'Total', 'Rounds'];
-    const rows = sortedTeams.map((t, i) => [
-      i + 1,
-      `"${t.name}"`,
-      t.damageTotal.toFixed(1),
-      t.aggrTotal.toFixed(1),
-      t.ctrlTotal.toFixed(1),
-      t.total.toFixed(1),
-      t.rounds,
-    ]);
-    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `robowars_scores_${new Date().toISOString().slice(0,10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  function confirmReset() {
+    resetAll();
+    setShowResetConfirm(false);
   }
 
   return (
     <div className="min-h-screen bg-robo-dark grid-bg">
-      <div className="max-w-[720px] mx-auto border-x border-robo-border min-h-screen">
+      <div className="max-w-[1400px] mx-auto min-h-screen px-6">
+        {/* Match Ended Modal */}
+        {matchEnded && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+            <div className="bg-robo-card border border-robo-accent/40 rounded-2xl p-8 max-w-md w-full mx-4 shadow-glow-cyan">
+              <h2 className="font-display font-bold text-2xl text-white uppercase tracking-wider text-center mb-6">
+                Match Ended
+              </h2>
+              <p className="text-sm text-gray-400 font-mono text-center mb-8">
+                What would you like to do next?
+              </p>
+              <div className="flex flex-col gap-3">
+                <Link
+                  to="/leaderboard"
+                  className="w-full py-3 px-6 rounded-xl font-display font-bold uppercase tracking-wider text-sm bg-gradient-to-r from-robo-accent to-cyan-400 text-robo-dark hover:shadow-glow-cyan transition-all text-center"
+                >
+                  View Leaderboard
+                </Link>
+                <Link
+                  to="/match"
+                  className="w-full py-3 px-6 rounded-xl font-display font-bold uppercase tracking-wider text-sm bg-robo-card border border-robo-accent/40 text-robo-accent hover:bg-robo-accent/10 transition-all text-center"
+                >
+                  Start New Match
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Reset Confirmation Modal */}
+        {showResetConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+            <div className="bg-robo-card border border-robo-red/40 rounded-2xl p-8 max-w-md w-full mx-4 shadow-glow-red">
+              <h2 className="font-display font-bold text-2xl text-robo-red uppercase tracking-wider text-center mb-4">
+                ⚠ Warning
+              </h2>
+              <p className="text-sm text-gray-300 font-body text-center mb-2">
+                You are about to reset <strong className="text-white">ALL</strong> tournament data including:
+              </p>
+              <ul className="text-xs text-gray-400 font-mono mb-6 space-y-1 list-disc list-inside">
+                <li>All team scores</li>
+                <li>All match results</li>
+                <li>Winners and losers leaderboards</li>
+                <li>Match history</li>
+              </ul>
+              <p className="text-sm text-robo-red font-display font-bold text-center mb-8">
+                This action CANNOT be undone!
+              </p>
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={confirmReset}
+                  className="w-full py-3 px-6 rounded-xl font-display font-bold uppercase tracking-wider text-sm bg-robo-red/20 text-robo-red border border-robo-red/40 hover:bg-robo-red/30 transition-all"
+                >
+                  Yes, Reset Everything
+                </button>
+                <button
+                  onClick={() => setShowResetConfirm(false)}
+                  className="w-full py-3 px-6 rounded-xl font-display font-bold uppercase tracking-wider text-sm bg-robo-card border border-robo-accent/40 text-robo-accent hover:bg-robo-accent/10 transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div className="sticky top-0 z-20 bg-robo-card/95 backdrop-blur-xl border-b border-robo-border px-6 py-4">
           <div className="flex items-center gap-3">
@@ -220,124 +428,79 @@ export default function AdminPage() {
               <span className="font-display font-black text-sm text-white">RW</span>
             </div>
             <div>
-              <h1 className="font-display font-bold text-lg text-white tracking-wider uppercase">Judge Panel</h1>
-              <p className="text-[10px] font-mono text-gray-500">Admin — scores sync to display in real-time</p>
+              <h1 className="font-display font-bold text-lg text-white tracking-wider uppercase">Scoring Panel</h1>
+              <p className="text-[10px] font-mono text-gray-500">Scoring — select a match and submit judge marks</p>
             </div>
           </div>
         </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          {/* Team selector */}
-          <div>
-            <Select
-              label="Select Team"
-              value={selectedTeamId}
-              onChange={handleTeamChange}
-              options={teams.map(t => ({ value: t.id, label: t.name }))}
-            />
-            {selectedTeam && (
-              <div className="mt-2 flex items-center gap-4 text-[10px] font-mono text-gray-500">
-                <span>Current: <span className="text-white font-bold">{selectedTeam.total.toFixed(1)} pts</span></span>
-                <span>Rounds: <span className="text-white">{selectedTeam.rounds}</span></span>
-              </div>
-            )}
-          </div>
-
-          {/* Damage Section — multiple entries */}
-          <CategorySection
-            title="Damage"
-            color="text-robo-red"
-            dotColor="bg-robo-red"
-            base={DAMAGE_BASE}
-            entries={damageEntries}
-            setEntries={setDamageEntries}
-            typeKey="severity"
-            typeLabel="Severity"
-            multipliers={DAMAGE_MULTIPLIERS}
-            defaultType="Cosmetic"
-          />
-
-          {/* Aggression Section — multiple entries */}
-          <CategorySection
-            title="Aggression"
-            color="text-robo-orange"
-            dotColor="bg-robo-orange"
-            base={AGGRESSION_BASE}
-            entries={aggrEntries}
-            setEntries={setAggrEntries}
-            typeKey="factor"
-            typeLabel="Factor"
-            multipliers={AGGRESSION_MULTIPLIERS}
-            defaultType="Reactive"
-          />
-
-          {/* Control Section — multiple entries */}
-          <CategorySection
-            title="Control"
-            color="text-robo-accent"
-            dotColor="bg-robo-accent"
-            base={CONTROL_BASE}
-            entries={ctrlEntries}
-            setEntries={setCtrlEntries}
-            typeKey="factor"
-            typeLabel="Factor"
-            multipliers={CONTROL_MULTIPLIERS}
-            defaultType="Evasive"
-          />
-
-          {/* Preview Total */}
-          <div className="bg-robo-dark rounded-xl p-4 border border-robo-border space-y-3">
-            <span className="text-[10px] font-mono text-gray-500 uppercase tracking-widest block">Submission Preview</span>
-            <div className="grid grid-cols-3 gap-3 text-center">
-              <div>
-                <span className="text-[10px] font-mono text-gray-500 block">Damage</span>
-                <span className="font-display font-bold text-robo-red">{preview.dmg.toFixed(1)}</span>
-              </div>
-              <div>
-                <span className="text-[10px] font-mono text-gray-500 block">Aggression</span>
-                <span className="font-display font-bold text-robo-orange">{preview.aggr.toFixed(1)}</span>
-              </div>
-              <div>
-                <span className="text-[10px] font-mono text-gray-500 block">Control</span>
-                <span className="font-display font-bold text-robo-accent">{preview.ctrl.toFixed(1)}</span>
+        <div className="py-6 space-y-6">
+          {!currentMatch && (
+            <div className="bg-robo-card/50 rounded-xl border border-robo-border p-6 text-center">
+              <p className="font-display font-bold text-lg text-white uppercase tracking-wider mb-6">No match selected</p>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center max-w-md mx-auto">
+                <Link
+                  to="/leaderboard"
+                  className="flex-1 py-3 px-6 rounded-xl font-display font-bold uppercase tracking-wider text-sm bg-gradient-to-r from-robo-accent to-cyan-400 text-robo-dark hover:shadow-glow-cyan transition-all text-center"
+                >
+                  View Leaderboard
+                </Link>
+                <Link
+                  to="/match"
+                  className="flex-1 py-3 px-6 rounded-xl font-display font-bold uppercase tracking-wider text-sm bg-robo-card border border-robo-accent/40 text-robo-accent hover:bg-robo-accent/10 transition-all text-center"
+                >
+                  Start New Match
+                </Link>
               </div>
             </div>
-            <div className="border-t border-robo-border pt-3 flex items-center justify-between">
-              <span className="font-body text-sm text-gray-400">+ This round</span>
-              <span className="font-display font-bold text-xl">
-                +{preview.total.toFixed(1)}
-              </span>
+          )}
+
+          {currentMatch && (
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              <ScorePanel
+                team={teamA}
+                label="Team 1 — Judge 1"
+                accent="text-robo-accent"
+                damageEntries={damageEntriesA}
+                setDamageEntries={setDamageEntriesA}
+                aggrEntries={aggrEntriesA}
+                setAggrEntries={setAggrEntriesA}
+                ctrlEntries={ctrlEntriesA}
+                setCtrlEntries={setCtrlEntriesA}
+              />
+              <ScorePanel
+                team={teamB}
+                label="Team 2 — Judge 2"
+                accent="text-robo-yellow"
+                damageEntries={damageEntriesB}
+                setDamageEntries={setDamageEntriesB}
+                aggrEntries={aggrEntriesB}
+                setAggrEntries={setAggrEntriesB}
+                ctrlEntries={ctrlEntriesB}
+                setCtrlEntries={setCtrlEntriesB}
+              />
             </div>
-            {selectedTeam && (
-              <div className="flex items-center justify-between">
-                <span className="font-display font-bold text-white uppercase tracking-wider text-sm">New Total</span>
-                <span className="font-display font-bold text-2xl text-white">
-                  {(selectedTeam.total + preview.total).toFixed(1)}
-                </span>
-              </div>
-            )}
-          </div>
+          )}
 
-          {/* Submit */}
-          <button
-            type="submit"
-            className={`w-full py-3 rounded-xl font-display font-bold uppercase tracking-wider text-sm transition-all duration-300 ${
-              submitted
-                ? 'bg-robo-green text-robo-dark'
-                : 'bg-gradient-to-r from-robo-accent to-cyan-400 text-robo-dark hover:shadow-glow-cyan'
-            }`}
-          >
-            {submitted ? '✓ SCORE SUBMITTED' : 'SUBMIT SCORES'}
-          </button>
-
-          {/* Controls + Reset */}
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <button
               type="button"
-              onClick={handleDownloadCSV}
-              className="py-2 px-4 rounded-xl font-display font-bold uppercase tracking-wider text-xs bg-robo-card border border-robo-green/30 text-robo-green hover:bg-robo-green/10 transition-colors"
+              onClick={handleSubmitAll}
+              disabled={!currentMatch}
+              className={`py-2 px-5 rounded-xl font-display font-bold uppercase tracking-wider text-xs transition-colors ${
+                submittedAll
+                  ? 'bg-robo-green text-robo-dark'
+                  : 'bg-gradient-to-r from-robo-accent to-cyan-400 text-robo-dark hover:shadow-glow-cyan'
+              } disabled:opacity-40 disabled:cursor-not-allowed`}
             >
-              ↓ CSV
+              {submittedAll ? '✓ Submitted' : 'Submit'}
+            </button>
+            <button
+              type="button"
+              onClick={handleEndMatch}
+              disabled={!currentMatch}
+              className="py-2 px-5 rounded-xl font-display font-bold uppercase tracking-wider text-xs bg-robo-red/20 text-robo-red border border-robo-red/40 hover:bg-robo-red/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              End Match
             </button>
             <button
               type="button"
@@ -347,7 +510,7 @@ export default function AdminPage() {
               Reset All
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );
