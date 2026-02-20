@@ -1,4 +1,12 @@
-import { useTournament } from '../store';\nimport { useNavigate } from 'react-router-dom';\n\nconst ROUNDS = [\n  { key: 'qualifiers', label: 'Qualifiers' },\n  { key: 'quarter-finals', label: 'Quarter Finals' },\n  { key: 'semi-finals', label: 'Semi Finals' },\n  { key: 'finals', label: 'Finals' },\n];
+import { useTournament } from '../store';
+import { useNavigate } from 'react-router-dom';
+
+const ROUNDS = [
+  { key: 'qualifiers', label: 'Qualifiers' },
+  { key: 'quarter-finals', label: 'Quarter Finals' },
+  { key: 'semi-finals', label: 'Semi Finals' },
+  { key: 'finals', label: 'Finals' },
+];
 
 function StatusBadge({ status }) {
   const styles = {
