@@ -118,7 +118,7 @@ export default function HomePage() {
       )}
       <div className="text-center px-6">
         <h1 className="font-display font-black text-3xl text-white tracking-widest uppercase">
-          Welcome to <span className="text-robo-accent">Robowars</span>
+          Welcome to <span className="text-robo-accent">SAKEC Robowars</span>
         </h1>
         <p className="mt-3 text-xs font-mono text-gray-500 uppercase tracking-[0.3em]">
           Tournament Dashboard
