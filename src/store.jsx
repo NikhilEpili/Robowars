@@ -30,6 +30,26 @@ const initialMatches = [];
 const STORAGE_KEY = 'robowars_state';
 const CHANNEL_NAME = 'robowars_sync';
 
+function getNextMatchNumber(matches) {
+  return matches.reduce((max, m) => {
+    const id = String(m.id ?? '');
+    const n = Number.parseInt(id.replace(/^m/i, ''), 10);
+    if (!Number.isFinite(n)) return max;
+    return n > max ? n : max;
+  }, 0);
+}
+
+function dedupeResultsByTeam(results) {
+  const byTeam = new Map();
+  results.forEach((r) => {
+    const existing = byTeam.get(r.teamId);
+    if (!existing || r.score > existing.score) {
+      byTeam.set(r.teamId, r);
+    }
+  });
+  return Array.from(byTeam.values());
+}
+
 // ── Load from localStorage ──
 function loadState() {
   try {
@@ -124,11 +144,7 @@ function reducer(state, action) {
     }
     case 'ADD_MATCH': {
       // payload: { teamA, teamB, status, round }
-      const maxNum = state.matches.reduce((max, m) => {
-        const n = parseInt(m.id.replace('m', ''), 10);
-        return n > max ? n : max;
-      }, 0);
-      const newId = 'm' + (maxNum + 1);
+      const newId = 'm' + (getNextMatchNumber(state.matches) + 1);
       return {
         ...state,
         matches: [...state.matches, { id: newId, ...action.payload }],
@@ -221,17 +237,25 @@ function reducer(state, action) {
       // payload: { fromRound, toRound }
       const { fromRound, toRound } = action.payload;
       const roundData = state.roundResults[fromRound] || { winners: [], losers: [] };
-      const winners = roundData.winners;
-      const losers = roundData.losers;
+      const roundMatchCount = state.matches.filter(m => (m.round || 'qualifiers') === fromRound).length;
+      const winners = dedupeResultsByTeam(roundData.winners)
+        .sort((a, b) => b.score - a.score);
+      const losers = dedupeResultsByTeam(roundData.losers)
+        .sort((a, b) => b.score - a.score);
+
+      const cappedWinners = roundMatchCount > 0 && winners.length > roundMatchCount
+        ? winners.slice(0, roundMatchCount)
+        : winners;
       
       let advancingTeamIds = new Set();
       let nextMatches = [];
+      let nextMatchNum = getNextMatchNumber(state.matches);
       
       // Different matchmaking logic based on the round we're advancing from
       if (fromRound === 'qualifiers') {
         // After qualifiers: Top winner vs top loser, then 2nd vs 7th, 3rd vs 6th, 4th vs 5th (winners only)
-        const winnerArray = [...winners].sort((a, b) => b.score - a.score);
-        const loserArray = [...losers].sort((a, b) => b.score - a.score);
+        const winnerArray = [...cappedWinners];
+        const loserArray = [...losers];
         
         // All winners advance
         winnerArray.forEach(entry => advancingTeamIds.add(entry.teamId));
@@ -247,7 +271,7 @@ function reducer(state, action) {
           const team2 = state.teams.find(t => t.id === loserArray[0].teamId);
           if (team1 && team2) {
             nextMatches.push({
-              id: `m${Math.random().toString(36).slice(2, 10)}`,
+              id: `m${++nextMatchNum}`,
               teamA: team1.name,
               teamB: team2.name,
               status: 'upcoming',
@@ -267,7 +291,7 @@ function reducer(state, action) {
           const team2 = state.teams.find(t => t.id === team2Id);
           if (team1 && team2) {
             nextMatches.push({
-              id: `m${Math.random().toString(36).slice(2, 10)}`,
+              id: `m${++nextMatchNum}`,
               teamA: team1.name,
               teamB: team2.name,
               status: 'upcoming',
@@ -277,7 +301,7 @@ function reducer(state, action) {
         }
       } else {
         // After quarter-finals and beyond: Pure elimination, only winners advance
-        const winnerArray = [...winners].sort((a, b) => b.score - a.score);
+        const winnerArray = [...cappedWinners];
         
         // Only winners advance
         winnerArray.forEach(entry => advancingTeamIds.add(entry.teamId));
@@ -292,7 +316,7 @@ function reducer(state, action) {
           const team2 = state.teams.find(t => t.id === team2Id);
           if (team1 && team2) {
             nextMatches.push({
-              id: `m${Math.random().toString(36).slice(2, 10)}`,
+              id: `m${++nextMatchNum}`,
               teamA: team1.name,
               teamB: team2.name,
               status: 'upcoming',
@@ -327,6 +351,9 @@ function reducer(state, action) {
           [toRound]: { winners: [], losers: [] },
         },
         matches: [...state.matches, ...nextMatches],
+        currentRound: toRound,
+        currentMatchId: null,
+        currentMatchStartTotals: {},
         showProceedToMatches: true,
       };
     }

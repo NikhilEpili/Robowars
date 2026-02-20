@@ -50,13 +50,32 @@ export default function Leaderboard() {
   const [viewRound, setViewRound] = useState(currentRound || 'qualifiers');
 
   const teamById = new Map(teams.map(t => [t.id, t]));
+
+  function dedupeResultsByTeam(results) {
+    const byTeam = new Map();
+    results.forEach((r) => {
+      const existing = byTeam.get(r.teamId);
+      if (!existing || r.score > existing.score) {
+        byTeam.set(r.teamId, r);
+      }
+    });
+    return Array.from(byTeam.values());
+  }
   
   // Get round-specific leaderboards based on viewRound
   const roundData = roundResults?.[viewRound] || (viewRound === currentRound ? matchResults : { winners: [], losers: [] });
-  const winners = [...(roundData?.winners || [])]
+  const roundMatchCount = matches.filter(m => (m.round || 'qualifiers') === viewRound).length;
+  const winnersRaw = dedupeResultsByTeam(roundData?.winners || [])
     .sort((a, b) => b.score - a.score);
-  const losers = [...(roundData?.losers || [])]
+  const losersRaw = dedupeResultsByTeam(roundData?.losers || [])
     .sort((a, b) => b.score - a.score);
+
+  const winners = roundMatchCount > 0 && winnersRaw.length > roundMatchCount
+    ? winnersRaw.slice(0, roundMatchCount)
+    : winnersRaw;
+  const losers = roundMatchCount > 0 && losersRaw.length > roundMatchCount
+    ? losersRaw.slice(0, roundMatchCount)
+    : losersRaw;
 
   function handleReset() {
     setShowResetConfirm(true);

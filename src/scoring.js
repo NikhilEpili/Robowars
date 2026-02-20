@@ -26,16 +26,22 @@ export const CONTROL_MULTIPLIERS = {
 };
 
 // Single entry calculation
+function normalizeHits(hits) {
+  const n = Number(hits);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return n;
+}
+
 export function calcDamageEntry(severity, hits = 1) {
-  return Math.max(0, hits) * DAMAGE_BASE * (DAMAGE_MULTIPLIERS[severity] ?? 1);
+  return normalizeHits(hits) * DAMAGE_BASE * (DAMAGE_MULTIPLIERS[severity] ?? 1);
 }
 
 export function calcAggressionEntry(factor, hits = 1) {
-  return Math.max(0, hits) * AGGRESSION_BASE * (AGGRESSION_MULTIPLIERS[factor] ?? 1);
+  return normalizeHits(hits) * AGGRESSION_BASE * (AGGRESSION_MULTIPLIERS[factor] ?? 1);
 }
 
 export function calcControlEntry(factor, hits = 1) {
-  return Math.max(0, hits) * CONTROL_BASE * (CONTROL_MULTIPLIERS[factor] ?? 1);
+  return normalizeHits(hits) * CONTROL_BASE * (CONTROL_MULTIPLIERS[factor] ?? 1);
 }
 
 // Calculate total from arrays of entries
